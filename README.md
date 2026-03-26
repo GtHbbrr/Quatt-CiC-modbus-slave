@@ -34,16 +34,37 @@ Gebruik een **RS485-naar-TTL converter** om de ESP32-S3 te verbinden met de Quat
 
 ## 📊 Belangrijke Registers
 
-De configuratie dekt de meest kritieke registers voor de Quatt CiC:
+De configuratie dekt de registers voor de Quatt CiC:
 
 
-| Register | Adres (Hex) | Beschrijving |
-| :--- | :--- | :--- |
-| **R1999** | `0x07cf` | Compressor Level Demand (Writable) |
-| **R2110** | `0x083e` | Buitentemperatuur (Outside Temp) |
-| **R2118** | `0x0846` | Status bits (**Bit 0: Defrost Mode**) |
-| **R2119** | `0x0847` | Alarm bits (High/Low pressure, Voltage) |
-| **R2134** | `0x0856` | Water Out Temperature |
+| Register | Sensor name                  | Register | Sensor name                  |
+| :---     | :--------------------------- | :---     | :--------------------------- |
+| R3999    | Working Mode set by CiC      | R2010    | Pump Mode set by CiC         |
+| R1999    | Compressor Level set by CiC  | R2015    | Pump Level set by CiC        |
+| R2006    | Silent mode set by CiC       | R2116    | Evaporator Pressure          |
+| R2099    | Working Mode Actual          | R2117    | Condenser Pressure           |
+| R2100    | Compressor AC Voltage        | R2118b0  | Defrost Mode                 |
+| R2101    | Compressor AC Current        | R2119b0  | Alarm - Main Line Current    |
+| R2102    | Compressor Frequency Demand  | R2119b3  | Info - Compressor Oil Return |
+| R2103    | Compressor Frequency Actual  | R2119b4  | Alarm - High Pressure Switch |
+| R2104    | Fan Speed Maximum            | R2119b6  | Alarm - 1st Start Pre-heat   |
+| R2105    | Fan Speed Actual             | R2119b9  | Alarm - AC High/Low Voltage  |
+| R2107    | Electric Expansion Valve     | R2119b12 | Alarm - Low Pressure Switch  |
+| R2108b2  | Bottom Heater                | R2119    | Status bits R2119            |
+| R2108b3  | Crankcase Heater             | R2120    | Status bits R2120            |
+| R2108b0  | Fan Low Speed Mode           | R2121    | Status bits R2121            |
+| R2108b4  | Fan Defrost Speed Mode       | R2122    | Firmware Version             |
+| R2108b5  | Fan High Speed Mode          | R2123    | EEPROM Version               |
+| R2108b6  | 4way Valve                   | R2127    | Main control board item No   |
+| R2108b11 | Pump Relay                   | R2131    | Condensing Temperature       |
+| R2108bx  | Other bits R2108             | R2132    | Evaporating Temperature      |
+| R2110    | Outside Temperature          | R2133    | Water In Temperature         |
+| R2111    | Evaporator Coil Temperature  | R2134    | Water Out Temperature        |
+| R2112    | Gas Discharge Temperature    | R2135    | Condenser Coil Temperature   |
+| R2113    | Gas Return Temperature       | R2137    | Pump Power                   |
+| R2115    | DIPswitch readout            | R2138    | Pump Flow                    |
+
+
 
 ---
 
