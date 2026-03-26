@@ -24,9 +24,9 @@ Gebruik een **RS485-naar-TTL converter** om de ESP32-S3 te verbinden met de Quat
 | :--- | :--- | :--- |
 | **5V / VIN** | **VCC** | Voeding (5V) |
 | **GND** | **GND** | Ground |
-| **GPIO08** | **TXD / DI** | Modbus TX |
-| **GPIO09** | **RXD / RO** | Modbus RX |
-| **GPIO10** | **DE / RE** | Flow Control (Half-duplex) |
+| **GPIO08** | **TXD / DI / RX-I** | Modbus TX |
+| **GPIO09** | **RXD / RO / TX-O** | Modbus RX |
+| **GPIO10** | **DE / RE / RTS** | Flow Control (Half-duplex) |
 
 > **Tip:** Gebruik een getwist aderpaar (bijv. uit een Cat5e kabel) voor de **A+** en **B-** verbinding naar de Quatt.
 
