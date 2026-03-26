@@ -1,90 +1,60 @@
 esphome:
-  name: modbus-slave
-  friendly_name: Modbus Slave
-  project:
-    name: "Quatt.Modbus Slave"
-    version: "v2.2-debug"
+  name: quatt-cic-bridge
+  friendly_name: Quatt CiC Modbus Bridge
 
 esp32:
   board: esp32-s3-devkitc-1
-  variant: ESP32S3
   framework:
     type: esp-idf
-
-ota:
-  - platform: esphome
-    password: "f62b435ace8494c6611203416b4fb48e"
-
-api:
-  encryption:
-    key: "Jz2icpiXNvijFC6ycUAv0BrdXwCYVoEL11nH88+r34E="    
-
+    
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+ota:
+  - platform: esphome
+    password: !secret QMB_ota
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "bCgjMAuWrpWokLfGt5g7bBSIvgPFbWUDa/G3G6tgLKg="  
+
 logger:
+  level: DEBUG
   baud_rate: 0
-  level: VERY_VERBOSE
 
-# UART Debugging om inkomende bytes te zien
-debug:
-  update_interval: 5s
-
+# ====================== RS485 ======================
 uart:
-  - id: uart_bus
-    tx_pin: GPIO08
-    rx_pin: GPIO09
-    baud_rate: 19200
-    data_bits: 8
-    parity: EVEN
-    stop_bits: 1
-    rx_buffer_size: 4096
-    debug:
-      direction: BOTH
-      dummy_receiver: false
-      after:
-        delimiter: "\n"
+  id: rs485_bus
+  tx_pin: GPIO9
+  rx_pin: GPIO8
+  baud_rate: 19200
+  data_bits: 8
+  parity: EVEN
+  stop_bits: 1
+  flow_control_pin:
+    number: GPIO10
+    inverted: True             # Probeer eerst true. Als geen reactie → false
+  debug:
+    direction: BOTH   # laat zowel TX als RX zien in logs
 
+# ====================== Modbus Server ======================
 modbus:
-  uart_id: uart_bus
-  id: mod_bus
-  role: server
-  flow_control_pin: GPIO10
-  send_wait_time: 50ms
+  - id: quatt_modbus
+    uart_id: rs485_bus
+    role: server
+    send_wait_time: 50ms
 
+# ====================== Modbus Slave Registers ======================
 modbus_controller:
-  - id: modbus_device
-    modbus_id: mod_bus
+  - id: quatt_cic
+    modbus_id: quatt_modbus
     address: 1
-    server_courtesy_response: 
-      enabled: true
+    setup_priority: -100
+    update_interval: never
+
     server_registers:
-      # --- WRITABLE REGISTERS (Nu met verplichte read_lambda) ---
-      - address: 0x07cf  # R1999: Compressor Level
-        value_type: U_WORD
-        read_lambda: return 0;
-        write_lambda: |-
-          ESP_LOGD("modbus_write", "CiC Set Compressor Level: %u", x);
-          return true;
-      - address: 0x07da  # R2010: Pump Mode
-        value_type: U_WORD
-        read_lambda: return 0;
-        write_lambda: |-
-          ESP_LOGD("modbus_write", "CiC Set Pump Mode: %u", x);
-          return true;
-      - address: 0x07df  # R2015: Pump Level
-        value_type: U_WORD
-        read_lambda: return 0;
-        write_lambda: |-
-          ESP_LOGD("modbus_write", "CiC Set Pump Level: %u", x);
-          return true;
-      - address: 0x0f9f  # R3999: Working Mode
-        value_type: U_WORD
-        read_lambda: return 0;
-        write_lambda: |-
-          ESP_LOGD("modbus_write", "CiC Set Working Mode: %u", x);
-          return true;
 
       # --- READ-ONLY REGISTERS (Status data terug naar CiC) ---
       - address: 0x0833  # R2099
@@ -207,3 +177,8 @@ modbus_controller:
       - address: 0x085a  # R2138
         value_type: U_WORD
         read_lambda: return 0x0000;
+
+interval:
+  - interval: 8s
+    then:
+      - logger.log: "Bridge actief - Slave ID 1 - baud 19200"      
