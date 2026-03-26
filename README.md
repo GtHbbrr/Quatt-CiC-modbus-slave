@@ -20,7 +20,7 @@ Deze versie is volledig bijgewerkt voor compatibiliteit met de nieuwste Quatt-fi
 Gebruik een **RS485-naar-TTL converter** om de ESP32-S3 te verbinden met de Quatt CiC.
 
 
-| ESP32-S3 Pin | RS485 Module Pin | Functie |
+| ESP32-S3 Super Mini Pin | Spark Fun RS485breakout Module Pin | Functie |
 | :--- | :--- | :--- |
 | **5V / VIN** | **VCC** | Voeding (5V) |
 | **GND** | **GND** | Ground |
