@@ -1,6 +1,6 @@
 # Quatt Modbus Slave (HP1 Emulator) for ESPHome
 
-Deze repository bevat de ESPHome-configuratie voor een **ESP32-S3** die fungeert als een **Modbus Slave (Server)**. Hiermee emuleer je de Heat Pump (HP1) unit om te communiceren met de **Quatt CiC (Master)**.
+Deze repository bevat de ESPHome-configuratie voor een **ESP32-S3 Super Mini** die fungeert als een **Modbus Slave (Server)**. Hiermee emuleer je de Heat Pump (HP1) unit om te communiceren met de **Quatt CiC (Master)**.
 
 Deze versie is volledig bijgewerkt voor compatibiliteit met de nieuwste Quatt-firmware (**v2.20.2 en hoger**).
 
