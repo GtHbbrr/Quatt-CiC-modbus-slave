@@ -29,6 +29,8 @@ uart:
   id: rs485_bus
   tx_pin: GPIO9
   rx_pin: GPIO8
+  rx_full_threshold: 1
+  rx_timeout: 1
   baud_rate: 19200
   data_bits: 8
   parity: EVEN
