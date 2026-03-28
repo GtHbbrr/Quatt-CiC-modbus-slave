@@ -6,7 +6,10 @@ esp32:
   board: esp32-s3-devkitc-1
   framework:
     type: esp-idf
-    
+    version: recommended
+    sdkconfig_options:
+      COMPILER_OPTIMIZATION_SIZE: y
+      CONFIG_BT_ENABLED: n
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
@@ -20,33 +23,239 @@ api:
   encryption:
     key: "bCgjMAuWrpWokLfGt5g7bBSIvgPFbWUDa/G3G6tgLKg="  
 
+# Minimal logger - no output on physical TX/RX pins
 logger:
   level: DEBUG
   baud_rate: 0
+  logs: 
+    uart_debug: WARN
+    modbus: WARN
+    modbus_controller: WARN
 
-# ====================== RS485 ======================
 uart:
-  id: rs485_bus
-  tx_pin: GPIO9
-  rx_pin: GPIO8
-  rx_full_threshold: 1
-  rx_timeout: 1
-  baud_rate: 19200
-  data_bits: 8
-  parity: EVEN
-  stop_bits: 1
-  flow_control_pin:
-    number: GPIO10
-    inverted: True             # Probeer eerst true. Als geen reactie → false
-  debug:
-    direction: BOTH   # laat zowel TX als RX zien in logs
+  - id: mod_bus
+    tx_pin: GPIO06        # → SP3485 RX-I
+    rx_pin: GPIO05        # → SP3485 TX-O
+    baud_rate: 19200
+    data_bits: 8
+    parity: EVEN
+    stop_bits: 1
+    #rx_full_threshold: 1
+    rx_timeout: 50
+    rx_buffer_size: 512
+    flow_control_pin: GPIO7
+ 
+    debug:
+      direction: BOTH
 
 # ====================== Modbus Server ======================
 modbus:
   - id: quatt_modbus
-    uart_id: rs485_bus
+    uart_id: mod_bus
     role: server
     send_wait_time: 50ms
+
+# ====================== HA Entities ophalen ======================
+text_sensor:
+  - platform: homeassistant
+    id: hp1_set_working_mode_ha
+    entity_id: select.modbus_working_mode
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(hp1_set_working_mode_ha).publish_state(x);
+            ESP_LOGI("quatt", "HA changed working mode to %u", x.c_str());
+
+sensor:
+  - platform: homeassistant
+    id: hp1_set_compressor_level_ha
+    entity_id: number.modbus_compressor_level
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_silent_mode_ha
+    entity_id: switch.modbus_low_noise_mode
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_set_pump_mode_ha
+    entity_id: switch.modbus_pump_relay
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_r2099
+    entity_id: select.modbus_working_mode
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_r2100
+    entity_id: sensor.heat_pump_listener_ac_voltage
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_r2101
+    entity_id: sensor.heat_pump_listener_ac_current
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_r2102
+    entity_id: sensor.heat_pump_listener_compressor_working_speed_demand
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2103
+    entity_id: sensor.heat_pump_listener_compressor_working_speed_actual
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2104
+    entity_id: sensor.modbus_fan_speed_maximum
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2105
+    entity_id: sensor.heat_pump_listener_fan_speed_actual
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2107
+    entity_id: sensor.heat_pump_listener_electric_expansion_valve
+    internal: true
+  - platform: template
+    id: hp1_r2108
+    internal: true
+    lambda: |-
+      uint16_t bits = 0;
+      if (id(hp1_fan_low_speed_mode_ha).state) bits |= 0x1;
+      if (id(hp1_bottom_plate_heater_ha).state) bits |= 0x4;
+      if (id(hp1_crankcase_heater_ha).state) bits |= 0x8;
+      if (id(hp1_fan_defrost_mode_ha).state) bits |= 0x10;
+      if (id(hp1_fan_high_speed_mode_ha).state) bits |= 0x20;
+      if (id(hp1_four_way_valve_ha).state) bits |= 0x40;
+      if (id(hp1_pump_relay_ha).state) bits |= 0x800;
+      return bits;
+
+  - platform: homeassistant
+    id: hp1_r2110
+    entity_id: sensor.heat_pump_listener_outside_temperature
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_r2111
+    entity_id: sensor.heat_pump_listener_evaporator_coil_temperature
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2112
+    entity_id: sensor.heat_pump_listener_discharge_temperature
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2113
+    entity_id: sensor.heat_pump_listener_suction_temperature
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2116
+    entity_id: sensor.heat_pump_listener_evaporator_pressure
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2117
+    entity_id: sensor.heat_pump_listener_condensor_pressure
+    internal: true
+  - platform: template
+    id: hp1_r2118
+    internal: true
+    lambda: |-
+      return id(hp1_defrost_ha).state ? 1 : 0;
+  - platform: template
+    id: hp1_r2122
+    internal: true
+    lambda: |-
+      return 0x011E;
+  - platform: homeassistant
+    id: hp1_r2131
+    entity_id: sensor.heat_pump_listener_condensing_temperature
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2132
+    entity_id: sensor.heat_pump_listener_evaporating_temperature
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_r2133
+    entity_id: sensor.heat_pump_listener_water_in_temperature
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_r2134
+    entity_id: sensor.heat_pump_listener_water_out_temperature
+    internal: true
+
+  - platform: homeassistant
+    id: hp1_r2135
+    entity_id: sensor.heat_pump_listener_condensor_coil_temperature
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2137
+    entity_id: sensor.heat_pump_listener_pump_power
+    internal: true
+  - platform: homeassistant
+    id: hp1_r2138
+    entity_id: sensor.heat_pump_listener_pump_flow
+    internal: true    
+
+binary_sensor:
+  - platform: homeassistant
+    id: hp1_fan_low_speed_mode_ha
+    entity_id: binary_sensor.heat_pump_listener_quatt_fan_low_speed_mode
+    internal: true
+  - platform: homeassistant
+    id: hp1_bottom_plate_heater_ha
+    entity_id: binary_sensor.heat_pump_listener_quatt_bottom_heater
+    internal: true
+  - platform: homeassistant
+    id: hp1_crankcase_heater_ha
+    entity_id: binary_sensor.heat_pump_listener_quatt_crankcase_heater
+    internal: true
+  - platform: homeassistant
+    id: hp1_fan_defrost_mode_ha
+    entity_id: binary_sensor.modbus_fan_speed_defrost_mode
+    internal: true
+  - platform: homeassistant
+    id: hp1_fan_high_speed_mode_ha
+    entity_id: binary_sensor.heat_pump_listener_quatt_fan_high_speed_mode
+    internal: true
+  - platform: homeassistant
+    id: hp1_four_way_valve_ha
+    entity_id: binary_sensor.heat_pump_listener_quatt_4way_valve
+    internal: true
+  - platform: homeassistant
+    id: hp1_pump_relay_ha
+    entity_id: binary_sensor.heat_pump_listener_quatt_pump_relay
+    internal: true
+  - platform: homeassistant
+    id: hp1_defrost_ha
+    entity_id: binary_sensor.heat_pump_listener_quatt_defrost_mode
+    internal: true
+
+
+# ====================== Globals (interne opslag) ======================
+globals:
+  - id: cic_working_mode_set
+    type: uint16_t
+    restore_value: no
+    initial_value: "0"
+  - id: cic_compressor_level_set
+    type: uint16_t
+    restore_value: no
+    initial_value: "0"
+  - id: cic_silent_mode_set
+    type: uint16_t
+    restore_value: no
+    initial_value: "0"
+  - id: cic_pump_mode_set
+    type: uint16_t
+    restore_value: no
+    initial_value: "0"
+  - id: cic_pump_level_set
+    type: uint16_t
+    restore_value: no
+    initial_value: "0"
 
 # ====================== Modbus Slave Registers ======================
 modbus_controller:
@@ -55,132 +264,362 @@ modbus_controller:
     address: 1
     setup_priority: -100
     update_interval: never
+    server_courtesy_response:
+      enabled: true
+      register_last_address: 5000
+      register_value: 0    
 
     server_registers:
+      # CiC -> HP control registers
+      - address: 1999  # R1999 Compressor Level set by CiC
+        value_type: U_WORD
+        read_lambda: |-
+          return id(cic_compressor_level_set);
+        write_lambda: |-
+          id(cic_compressor_level_set) = x;
+          ESP_LOGI("modbus_server", "R1999 compressor level <- %u", x);
+          return true;
+      - address: 2006  # R2006 Silent mode set by CiC
+        value_type: U_WORD
+        read_lambda: |-
+          return id(cic_silent_mode_set);
+        write_lambda: |-
+          id(cic_silent_mode_set) = x;
+          ESP_LOGI("modbus_server", "R2006 silent mode <- %u", x);
+          return true;
+      - address: 2010  # R2010 Pump mode set by CiC
+        value_type: U_WORD
+        read_lambda: |-
+          return id(cic_pump_mode_set);
+        write_lambda: |-
+          id(cic_pump_mode_set) = x;
+          ESP_LOGI("modbus_server", "R2010 pump mode <- %u", x);
+          return true;
+      - address: 2015  # R2015 Pump level set by CiC
+        value_type: U_WORD
+        read_lambda: |-
+          return id(cic_pump_level_set);
+        write_lambda: |-
+          id(cic_pump_level_set) = x;
+          ESP_LOGI("modbus_server", "R2015 pump level <- %u", x);
+          return true;
+      - address: 3999  # R3999 Working mode set by CiC
+        value_type: U_WORD
+        read_lambda: |-
+          if (id(hp1_set_working_mode_ha).state == "Cooling") return 1;
+          if (id(hp1_set_working_mode_ha).state == "Heating") return 2;
+          return 0;
+        write_lambda: |-
+          id(cic_working_mode_set) = x;
+          ESP_LOGI("modbus_server", "R3999 working mode <- %u", x);
+          return true;
 
-      # --- READ-ONLY REGISTERS (Status data terug naar CiC) ---
-      - address: 0x0833  # R2099
+      # HP -> CiC status registers
+      - address: 2099  # R2099 Working Mode Actual
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0834  # R2100
+        read_lambda: |-
+          if (id(hp1_set_working_mode_ha).state == "Cooling") return 1;
+          if (id(hp1_set_working_mode_ha).state == "Heating") return 2;
+          return 0;
+      - address: 2100  # R2100 Compressor AC Voltage
         value_type: U_WORD
-        read_lambda: return 0x00ea;
-      - address: 0x0835  # R2101
+        read_lambda: |-
+          const float v = id(hp1_r2100).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v));
+      - address: 2101  # R2101 Compressor AC Current
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0836  # R2102
+        read_lambda: |-
+          const float v = id(hp1_r2101).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v * 10.0f));
+      - address: 2102  # R2102 Compressor Frequency Demand
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0837  # R2103
+        read_lambda: |-
+          const float v = id(hp1_r2102).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v));
+      - address: 2103  # R2103 Compressor Frequency Actual
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0838  # R2104
+        read_lambda: |-
+          const float v = id(hp1_r2103).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v));
+      - address: 2104  # R2104 Fan Speed Maximum
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0839  # R2105
+        read_lambda: |-
+          const float v = id(hp1_r2104).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v));
+      - address: 2105  # R2105 Fan Speed Actual
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x083a
+        read_lambda: |-
+          const float v = id(hp1_r2105).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v));
+      - address: 2106  # R2106 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x083b  # R2107
+        read_lambda: |-
+          return 0;
+      - address: 2107  # R2107 Electric Expansion Valve
         value_type: U_WORD
-        read_lambda: return 0x0064;
-      - address: 0x083c  # R2108
+        read_lambda: |-
+          const float v = id(hp1_r2107).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v));
+      - address: 2108  # R2108 Status bits
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x083d
+        read_lambda: |-
+          const float v = id(hp1_r2108).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v));
+      - address: 2109  # R2109 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x01f4;
-      - address: 0x083e  # R2110
+        read_lambda: |-
+          return 0;
+      - address: 2110   # R2110 Outside Temperature
         value_type: U_WORD
-        read_lambda: return 0x191b;
-      - address: 0x083f  # R2111
+        read_lambda: |-
+          const float v = id(hp1_r2110).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf((v * 100.0f) + 3000.0f));          
+      - address: 2111  # R2111 Evaporator Coil Temperature
         value_type: U_WORD
-        read_lambda: return 0x15d0;
-      - address: 0x0840  # R2112
+        read_lambda: |-
+          const float v = id(hp1_r2111).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf((v * 100.0f) + 3000.0f));
+      - address: 2112  # R2112 Gas Discharge Temperature
         value_type: U_WORD
-        read_lambda: return 0x14ef;
-      - address: 0x0841  # R2113
+        read_lambda: |-
+          const float v = id(hp1_r2112).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf((v * 100.0f) + 3000.0f));
+      - address: 2113  # R2113 Gas Return Temperature
         value_type: U_WORD
-        read_lambda: return 0x151a;
-      - address: 0x0842
+        read_lambda: |-
+          const float v = id(hp1_r2113).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf((v * 100.0f) + 3000.0f));
+      - address: 2114  # R2114 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0843
+        read_lambda: |-
+          return 0;
+      - address: 2115  # R2115 DIPswitch readout
         value_type: U_WORD
-        read_lambda: return 0x1800;
-      - address: 0x0844  # R2116
+        read_lambda: |-
+          return 0x1800;
+      - address: 2116  # R2116 Evaporator Pressure
         value_type: U_WORD
-        read_lambda: return 0x0094;
-      - address: 0x0845  # R2117
+        read_lambda: |-
+          const float v = id(hp1_r2116).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v * 10.0f));
+      - address: 2117  # R2117 Condenser Pressure
         value_type: U_WORD
-        read_lambda: return 0x0093;
-      - address: 0x0846  # R2118: Status bits (b0: Defrost Mode)
+        read_lambda: |-
+          const float v = id(hp1_r2117).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v * 10.0f));
+      - address: 2118  # R2118 Status bits
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0847  # R2119: Alarm bits
+        read_lambda: |-
+          const float v = id(hp1_r2118).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v));
+      - address: 2119  # R2119 Alarm bits
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0848  # R2120
+        read_lambda: |-
+          return 0;
+      - address: 2120  # R2120 Status bits
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0849  # R2121
+        read_lambda: |-
+          return 0;
+      - address: 2121  # R2121 Status bits
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x084a  # R2122
+        read_lambda: |-
+          return 0;
+      - address: 2122  # R2122 Firmware Version
         value_type: U_WORD
-        read_lambda: return 0x011e;
-      - address: 0x084b  # R2123
+        read_lambda: |-
+          const float v = id(hp1_r2122).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v));
+      - address: 2123  # R2123 EEPROM Version
         value_type: U_WORD
-        read_lambda: return 0x0072;
-      - address: 0x084c
+        read_lambda: |-
+          return 0x0072;
+      - address: 2124  # R2124 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x0002;
-      - address: 0x084d
+        read_lambda: |-
+          return 0x0002;
+      - address: 2125  # R2125 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x2e78;
-      - address: 0x084e
+        read_lambda: |-
+          return 0x2E78;
+      - address: 2126  # R2126 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x084f
+        read_lambda: |-
+          return 0;
+      - address: 2127  # R2127 Main control board item number
         value_type: U_WORD
-        read_lambda: return 0x0e37;
-      - address: 0x0850
+        read_lambda: |-
+          return 0x0E37;
+      - address: 2128  # R2128 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x0bb8;
-      - address: 0x0851
+        read_lambda: |-
+          return 0x0BB8;
+      - address: 2129  # R2129 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x0bb8;
-      - address: 0x0852
+        read_lambda: |-
+          return 0x0BB8;
+      - address: 2130  # R2130 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x0853  # R2131
+        read_lambda: |-
+          return 0;
+      - address: 2131  # R2131 Condensing Temperature
         value_type: U_WORD
-        read_lambda: return 0x14a7;
-      - address: 0x0854  # R2132
+        read_lambda: |-
+          const float v = id(hp1_r2131).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf((v * 100.0f) + 3000.0f));
+      - address: 2132  # R2132 Evaporating Temperature
         value_type: U_WORD
-        read_lambda: return 0x14d1;
-      - address: 0x0855  # R2133
+        read_lambda: |-
+          const float v = id(hp1_r2132).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf((v * 100.0f) + 3000.0f));
+      - address: 2133  # R2133 Water In
         value_type: U_WORD
-        read_lambda: return 0x15a2;
-      - address: 0x0856  # R2134
+        read_lambda: |-
+          const float v = id(hp1_r2133).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf((v * 100.0f) + 3000.0f));      
+      - address: 2134  # R2134 Water Out
         value_type: U_WORD
-        read_lambda: return 0x17f5;
-      - address: 0x0857  # R2135
+        read_lambda: |-
+          const float v = id(hp1_r2134).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf((v * 100.0f) + 3000.0f));      
+      - address: 2135  # R2135 Condenser Coil Temperature
         value_type: U_WORD
-        read_lambda: return 0x160a;
-      - address: 0x0858
+        read_lambda: |-
+          const float v = id(hp1_r2135).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf((v * 100.0f) + 3000.0f));
+      - address: 2136  # R2136 Reserved/unknown
         value_type: U_WORD
-        read_lambda: return 0x0bb8;
-      - address: 0x0859  # R2137
+        read_lambda: |-
+          return 0x0BB8;
+      - address: 2137  # R2137 Pump Power
         value_type: U_WORD
-        read_lambda: return 0x0000;
-      - address: 0x085a  # R2138
+        read_lambda: |-
+          const float v = id(hp1_r2137).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v * 10.0f));
+      - address: 2138  # R2138 Pump Flow
         value_type: U_WORD
-        read_lambda: return 0x0000;
+        read_lambda: |-
+          const float v = id(hp1_r2138).state;
+          return isnan(v) ? 0 : static_cast<uint16_t>(lroundf(v / 0.618f));
 
-interval:
-  - interval: 8s
-    then:
-      - logger.log: "Bridge actief - Slave ID 1 - baud 19200"      
+      # The real HP returns 0xFFFF across this product-version block.
+      - address: 11160
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11161
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11162
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11163
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11164
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11165
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11166
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11167
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11168
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11169
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11170
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11171
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11172
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11173
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11174
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11175
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11176
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11177
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11178
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11179
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      # The real HP returns 0xFFFF across this PCB-serial block.
+      - address: 11219
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11220
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11221
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11222
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11223
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11224
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11225
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11226
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11227
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11228
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11229
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11230
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11231
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11232
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11233
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11234
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11235
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11236
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11237
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;
+      - address: 11238
+        value_type: U_WORD
+        read_lambda: return 0xFFFF;                        
